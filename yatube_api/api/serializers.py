@@ -1,60 +1,56 @@
-from posts.models import Comment, Post, Group, Follow, User
-from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
+from rest_framework.serializers import (
+    CurrentUserDefault, ModelSerializer, SlugRelatedField)
 from rest_framework.validators import UniqueTogetherValidator
 
+from posts.models import Comment, Follow, Group, Post, User
 
-class PostSerializer(serializers.ModelSerializer):
+VALIDATION_ERROR_MESSAGE = ('Отсутствует обязательное поле в теле запроса или'
+                            ' оно не соответствует требованиям')
 
-    author = serializers.SlugRelatedField(
-        slug_field="username", read_only=True
-    )
+
+class BaseAuthorSerializer(ModelSerializer):
+    author = SlugRelatedField(slug_field='username', read_only=True)
 
     class Meta:
-        fields = "__all__"
+        fields = '__all__'
+
+
+class PostAuthorSerializer(BaseAuthorSerializer):
+    class Meta(BaseAuthorSerializer.Meta):
         model = Post
 
 
-class CommentSerializer(serializers.ModelSerializer):
-
-    author = serializers.SlugRelatedField(
-        read_only=True, slug_field="username"
-    )
-
-    class Meta:
-        fields = "__all__"
+class CommentAuthorSerializer(BaseAuthorSerializer):
+    class Meta(BaseAuthorSerializer.Meta):
         model = Comment
+        read_only_fields = ('post',)
 
 
-class GroupSerializer(serializers.ModelSerializer):
-
+class GroupSerializer(ModelSerializer):
     class Meta:
+        fields = '__all__'
         model = Group
-        fields = "__all__"
 
 
-class FollowSerializer(serializers.ModelSerializer):
-    user = serializers.SlugRelatedField(
-        read_only=True,
-        slug_field="username",
-        default=serializers.CurrentUserDefault()
-    )
-    following = serializers.SlugRelatedField(
-        queryset=User.objects.all(),
-        slug_field="username"
-    )
+class FollowSerializer(ModelSerializer):
+    user = SlugRelatedField(
+        slug_field='username', read_only=True, default=CurrentUserDefault())
+    following = SlugRelatedField(
+        slug_field='username', queryset=User.objects.all())
 
     class Meta:
+        fields = ('user', 'following')
         model = Follow
-        fields = ("user", "following")
-        validators = [
+        validators = (
             UniqueTogetherValidator(
                 queryset=Follow.objects.all(),
-                fields=("user", "following")
-            )
-        ]
+                fields=('user', 'following'),
+                message=VALIDATION_ERROR_MESSAGE
+            ),
+        )
 
     def validate_following(self, value):
-        if value == self.context.get("request").user:
-            raise ValidationError("Нельзя подписываться на себя.")
+        if value == self.context['request'].user:
+            raise ValidationError(VALIDATION_ERROR_MESSAGE)
         return value
