@@ -53,4 +53,3 @@ class FollowSerializer(serializers.ModelSerializer):
         if self.context['request'].user == value:
             raise serializers.ValidationError('Вы уже подписаны ')
         return value
-
